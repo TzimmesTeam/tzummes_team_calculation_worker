@@ -12,20 +12,39 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Run clang-format check
-        uses: jidicula/clang-format-action@v4.15.0
         with:
-          clang-format-version: '18'
-          check-path: '.'
-          files-changed-only: true
-          fallback-style: 'LLVM'
+          fetch-depth: 0
+
+      - name: Get changed C++ files
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            **/*.cpp
+            **/*.cc
+            **/*.cxx
+            **/*.hpp
+            **/*.h
+            **/*.hh
+            **/*.hxx
+          separator: " "
+
+      - name: Install clang-format
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: pip install clang-format==18.1.8
+
+      - name: Check code style
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "Checking: ${{ steps.changed-files.outputs.all_changed_files }}"
+          clang-format --dry-run --Werror \
+            ${{ steps.changed-files.outputs.all_changed_files }}
 
       - name: Configure CMake
-        run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build ${{github.workspace}}/build --parallel
+        run: cmake --build build --parallel
 
       - name: Run tests
-        run: ctest --test-dir ${{github.workspace}}/build --output-on-failure --no-tests=error
+        run: ctest --test-dir build --output-on-failure --no-tests=error
