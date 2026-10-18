@@ -45,5 +45,4 @@ target_link_libraries(worker_tests
 )
 
 include(GoogleTest)
-
 gtest_discover_tests(worker_tests)

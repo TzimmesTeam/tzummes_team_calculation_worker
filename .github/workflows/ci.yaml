@@ -1,0 +1,31 @@
+name: C++ CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run clang-format check
+        uses: jidicula/clang-format-action@v4.15.0
+        with:
+          clang-format-version: '18'
+          check-path: '.'
+          files-changed-only: true
+          fallback-style: 'LLVM'
+
+      - name: Configure CMake
+        run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build ${{github.workspace}}/build --parallel
+
+      - name: Run tests
+        run: ctest --test-dir ${{github.workspace}}/build --output-on-failure --no-tests=error
