@@ -2,5 +2,5 @@
 #include <gtest/gtest.h>
 
 TEST(Test, example) {
-    ASSERT_EQ(1, (2-1));
+    ASSERT_EQ(1, (2 - 1));
 }
