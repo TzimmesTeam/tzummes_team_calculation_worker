@@ -20,10 +20,6 @@ FetchContent_MakeAvailable(googletest)
 
 add_library(worker_lib
     src/algorithms.cpp
-    src/rules.cpp
-    src/engine.cpp
-    src/batch.cpp
-    src/io.cpp
 )
 
 target_include_directories(worker_lib PUBLIC
