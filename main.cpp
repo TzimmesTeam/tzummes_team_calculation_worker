@@ -39,6 +39,7 @@ int main() {
 
     deal.calculate();
 
+    std::cout << "date | payment_type | sum of payment | balance_after | days_from_start" << std::endl;
     for (auto& cp : deal.cash_flow) {
         int y, m, d;
         cp.date.ymd(y, m, d);
