@@ -58,8 +58,7 @@ namespace calculation {
             out = v;
             return true;
             };
-        while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) 
-            s.remove_prefix(1);
+        while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) s.remove_prefix(1);
         int y = 0, m = 0, d = 0;
         if (s.size() >= 10 && s[4] == '-' && s[7] == '-' && num(0, 4, y) && num(5, 2, m) && num(8, 2, d)) {
         }
@@ -68,8 +67,7 @@ namespace calculation {
         else {
             return std::nullopt;
         }
-        if (m < 1 || m > 12 || d < 1 || d > days_in_month(y, m))
-            return std::nullopt;
+        if (m < 1 || m > 12 || d < 1 || d > days_in_month(y, m)) return std::nullopt;
         return Date::from_ymd(y, m, d);
     }
 
@@ -109,17 +107,14 @@ namespace calculation {
         int y, m, iDay = 0, bDay = 0;
         if (interest_payment_rule_start_dttm.valid()) interest_payment_rule_start_dttm.ymd(y, m, iDay);
         if (base_payment_rule_start_dttm.valid())     base_payment_rule_start_dttm.ymd(y, m, bDay);
-        if (!iDay) 
-            iDay = bDay;
-        if (!bDay) 
-            bDay = iDay;
+        if (!iDay) iDay = bDay;
+        if (!bDay) bDay = iDay;
 
         auto anchor = [&](int day) {
             if (new_deal) return Startdate;
             Date a = add_months(Startdate, 0, day);
             return a > Startdate ? add_months(Startdate, -1, day) : a;
-         };
-
+            };
         const Date iAnchor = anchor(iDay);
         const Date bAnchor = anchor(bDay);
         const int iD = new_deal ? 0 : iDay;
@@ -127,29 +122,22 @@ namespace calculation {
 
         for (int k = 0; ; ++k) {
             Date d = add_months(iAnchor, k, iD);
-            if (d >= maturity_dttm) break;
+            if (d > maturity_dttm) break;
             time_table.interest_future.push_back(d);
         }
         for (int k = 0; ; ++k) {
             Date d = add_months(bAnchor, k, bD);
-            if (d >= maturity_dttm) break;
+            if (d > maturity_dttm) break;
             time_table.regular_future.push_back(d);
         }
     }
 
     void Deal::calculate() {
         switch (discriminator) {
-            case Discriminators::ANN:
-                calcANN();
-                break;
-            case Discriminators::RGM:
-                calcRGM();
-                break;
-            case Discriminators::SIMPLE:
-                calcSIMPLE();
-                break;
-            default:
-                break;
+        case Discriminators::ANN:    calcANN();    break;
+        case Discriminators::RGM:    calcRGM();    break;
+        case Discriminators::SIMPLE: calcSIMPLE(); break;
+        default: break;
         }
     }
 
@@ -173,14 +161,14 @@ namespace calculation {
             return;
 
         const size_t n = std::min(time_table.regular_future.size(), time_table.interest_future.size());
-
         if (n < 2)
             return;
 
-        long double r = interest_rate / 12.0 / 100.0;
-        ll periods = static_cast<ll>(n) - 1;
-        long double pw = std::pow(1 + r, periods);
-        long double pay = current_principal_amt * r * pw / (pw - 1);
+        const long double r = interest_rate / 12.0L / 100.0L;
+        const ll periods = static_cast<ll>(n) - 1;
+        const long double pw = std::pow(1 + r, periods);
+        const long double pay = (r == 0) ? current_principal_amt / periods
+            : current_principal_amt * r * pw / (pw - 1);
         long double balance = current_principal_amt;
         ll days_i = 0, days_r = 0;
 
@@ -189,18 +177,20 @@ namespace calculation {
             days_r += time_table.regular_future[i] - time_table.regular_future[i - 1];
 
             const long double interest = accrue(balance, time_table.interest_future[i - 1], time_table.interest_future[i]);
-            const long double principal = std::min(pay - interest, balance);
+            const bool at_maturity = (time_table.regular_future[i] == maturity_dttm);
+            const long double principal = at_maturity ? balance : std::min(pay - interest, balance);
             balance -= principal;
 
             cash_flow.push_back({ time_table.interest_future[i], PaymentType::INTEREST, interest, balance, days_i });
-            cash_flow.push_back({ time_table.regular_future[i], PaymentType::BASE, principal, balance, days_r });
+            cash_flow.push_back({ time_table.regular_future[i], at_maturity ? PaymentType::CLOSE : PaymentType::BASE, principal, balance, days_r });
         }
 
         if (balance > 1e-6L) {
-            const long double tail_interest = accrue(balance, time_table.interest_future[n - 1], maturity_dttm);
+            const long double tail_interest = time_table.interest_future[n - 1] < maturity_dttm ? accrue(balance, time_table.interest_future[n - 1], maturity_dttm) : 0.0L;
             days_i += maturity_dttm - time_table.interest_future[n - 1];
             days_r += maturity_dttm - time_table.regular_future[n - 1];
-            cash_flow.push_back({ maturity_dttm, PaymentType::INTEREST, tail_interest, balance, days_i });
+            if (tail_interest > 0)
+                cash_flow.push_back({ maturity_dttm, PaymentType::INTEREST, tail_interest, balance, days_i });
             cash_flow.push_back({ maturity_dttm, PaymentType::CLOSE, balance, 0, days_r });
         }
     }
@@ -236,6 +226,7 @@ namespace calculation {
     void Deal::calcSIMPLE() {
         if (!cash_flow.empty())
             return;
+
         if (time_table.interest_future.empty())
             return;
 
