@@ -8,9 +8,12 @@
 namespace calculation {
 
     using ll = long long;
+
     bool is_leap(int y);
     int  days_in_month(int y, int m);
     void date_from_days(int32_t z, int& y, int& m, int& d);
+
+    // days since 1970-01-01
     inline constexpr int32_t days_from_date(int y, int m, int d) {
         y -= (m <= 2);
         int era = ((y >= 0 ? y : y - 399) / 400);
@@ -21,14 +24,12 @@ namespace calculation {
     }
 
     struct Date {
-        int32_t n = INT32_MIN;  // days since 1970-01-01; INT32_MIN == "no date"
+        int32_t n = INT32_MIN;  // days since 1970-01-01; INT32_MIN - no date
 
         Date() = default;
         explicit Date(int32_t days) : n(days) {}
-
         static Date from_ymd(int y, int m, int d) { return Date(days_from_date(y, m, d)); }
         static Date max() { return Date(INT32_MAX); }
-
         bool valid() const { return n != INT32_MIN; }
         void ymd(int& y, int& m, int& d) const { date_from_days(n, y, m, d); }
         int year() const { int y, m, d; ymd(y, m, d); return y; }
@@ -43,15 +44,17 @@ namespace calculation {
         Date operator+(int32_t days) const { return Date(n + days); }
     };
 
+    // day == 0: оставить день базы; day == -1: последний день мес€ца; day > 0: этот день (с клампингом)
     Date add_months(Date base, int months, int day = 0);
     int  month_diff(Date a, Date b);
+
     std::optional<Date> parse_date(std::string_view s);
 
     enum class Discriminators { ANN, RGM, SIMPLE, None };
     enum class RateType { FIXED, FLOAT, None };
     enum class DayConvention { ACTACT, ACTACTISDA, ACT365, None };
     enum class PaymentRulePeriod { ONEMonth, ENDDATE, None };
-    enum class PaymentType { INTERESET, BASE, CLOSE, None };
+    enum class PaymentType { INTEREST, BASE, CLOSE, None };
 
     struct Schedules {
         std::vector<Date> regular_future;
