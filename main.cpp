@@ -2,19 +2,22 @@
 
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 using namespace calculation;
 
-static const size_t FIELDS = 13;
+static const size_t FIELDS_BASE = 13;
+static const size_t FIELDS_FULL = 18;
 
 static std::string type_name(PaymentType t) {
     switch (t) {
     case PaymentType::INTEREST: return "interest";
     case PaymentType::BASE:     return "principal";
     case PaymentType::CLOSE:    return "close";
+    case PaymentType::REPRICING: return "repricing";
     default:                    return "none";
     }
 }
@@ -86,9 +89,24 @@ static long double parse_num(const std::string& s, const char* name) {
     }
 }
 
-static Deal make_deal(const std::vector<std::string>& f) {
-    if (f.size() != FIELDS)
-        throw std::runtime_error("expected " + std::to_string(FIELDS) + " fields, got " + std::to_string(f.size()));
+static std::optional<long double> opt_num(const std::string& s, const char* name) {
+    if (s.empty()) return std::nullopt;
+    return parse_num(s, name);
+}
+
+static Deal make_deal(std::vector<std::string> f) {
+    if (f.size() != FIELDS_BASE && f.size() != FIELDS_FULL)
+        throw std::runtime_error("expected " + std::to_string(FIELDS_BASE) + " or " + std::to_string(FIELDS_FULL) +
+            " fields, got " + std::to_string(f.size()));
+    f.resize(FIELDS_FULL);
+
+    RepricingRule rep;
+    rep.start = opt_date(f[13], "repricing_rule_start_dttm");
+    auto period = parse_period_spec(f[14]);
+    if (!period) throw std::runtime_error("bad repricing_rule_period_cd: '" + f[14] + "'");
+    rep.period = *period;
+    rep.day = f[15].empty() ? 0 : static_cast<int>(parse_num(f[15], "repricing_rule_day_num"));
+
     return Deal(
         static_cast<int64_t>(parse_num(f[0], "deal_id")),
         req_date(f[1], "load_dtm"),
@@ -102,7 +120,10 @@ static Deal make_deal(const std::vector<std::string>& f) {
         parse_day_conv(f[9]),
         opt_date(f[10], "interest_payment_rule_start_dttm"),
         opt_date(f[11], "base_payment_rule_start_dttm"),
-        parse_num(f[12], "current_principal_amt")
+        parse_num(f[12], "current_principal_amt"),
+        rep,
+        opt_num(f[16], "cap_limit_interest_rate"),
+        opt_num(f[17], "floor_limit_interest_rate")
     );
 }
 

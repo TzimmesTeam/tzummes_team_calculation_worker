@@ -24,37 +24,88 @@ namespace calculation {
     }
 
     struct Date {
-        int32_t n = INT32_MIN;  // days since 1970-01-01; INT32_MIN - no date
+        int32_t n = INT32_MIN;  // days since 1970-01-01; INT32_MIN == "no date"
 
         Date() = default;
         explicit Date(int32_t days) : n(days) {}
-        static Date from_ymd(int y, int m, int d) { return Date(days_from_date(y, m, d)); }
-        static Date max() { return Date(INT32_MAX); }
-        bool valid() const { return n != INT32_MIN; }
-        void ymd(int& y, int& m, int& d) const { date_from_days(n, y, m, d); }
-        int year() const { int y, m, d; ymd(y, m, d); return y; }
 
-        friend bool operator==(Date a, Date b) { return a.n == b.n; }
-        friend bool operator!=(Date a, Date b) { return a.n != b.n; }
-        friend bool operator<(Date a, Date b) { return a.n < b.n; }
-        friend bool operator<=(Date a, Date b) { return a.n <= b.n; }
-        friend bool operator>(Date a, Date b) { return a.n > b.n; }
-        friend bool operator>=(Date a, Date b) { return a.n >= b.n; }
-        friend int32_t operator-(Date a, Date b) { return a.n - b.n; }
-        Date operator+(int32_t days) const { return Date(n + days); }
+        static Date from_ymd(int y, int m, int d) { 
+            return Date(days_from_date(y, m, d));
+        }
+        static Date max() { 
+            return Date(INT32_MAX);
+        }
+
+        bool valid() const { 
+            return n != INT32_MIN;
+        }
+        void ymd(int& y, int& m, int& d) const { 
+            date_from_days(n, y, m, d);
+        }
+        int year() const { 
+            int y, m, d; ymd(y, m, d); return y;
+        }
+
+        friend bool operator==(Date a, Date b) { 
+            return a.n == b.n;
+        }
+        friend bool operator!=(Date a, Date b) { 
+            return a.n != b.n;
+        }
+        friend bool operator<(Date a, Date b) { 
+            return a.n < b.n;
+        }
+        friend bool operator<=(Date a, Date b) {
+            return a.n <= b.n; 
+        }
+        friend bool operator>(Date a, Date b) {
+            return a.n > b.n;
+        }
+        friend bool operator>=(Date a, Date b) { 
+            return a.n >= b.n;
+        }
+        friend int32_t operator-(Date a, Date b) {
+            return a.n - b.n; 
+        }
+        Date operator+(int32_t days) const { 
+            return Date(n + days); 
+        }
     };
 
-    // day == 0: оставить день базы; day == -1: последний день мес€ца; day > 0: этот день (с клампингом)
     Date add_months(Date base, int months, int day = 0);
     int  month_diff(Date a, Date b);
 
+    // Accepts "DD.MM.YYYY", "YYYY-MM-DD"
     std::optional<Date> parse_date(std::string_view s);
 
     enum class Discriminators { ANN, RGM, SIMPLE, None };
     enum class RateType { FIXED, FLOAT, None };
     enum class DayConvention { ACTACT, ACTACTISDA, ACT365, None };
     enum class PaymentRulePeriod { ONEMonth, ENDDATE, None };
-    enum class PaymentType { INTEREST, BASE, CLOSE, None };
+
+    enum class PaymentType { INTEREST, BASE, CLOSE, REPRICING, None };
+
+
+    struct Period {
+        int months = 0;
+        int days = 0;
+        bool valid() const { 
+            return months > 0 || days > 0;
+        }
+    };
+
+    std::optional<Period> parse_period_spec(std::string_view s);
+
+    struct RepricingRule {
+        Date start;
+        Period period;
+        int day = 0;
+    };
+
+    struct RateStep {
+        Date from;
+        long double rate;
+    };
 
     struct Schedules {
         std::vector<Date> regular_future;
@@ -78,14 +129,18 @@ namespace calculation {
         Date deal_dttm;
         Discriminators discriminator = Discriminators::None;
         RateType rate_type = RateType::None;
-        long double interest_rate = 0;
+        long double interest_rate = 0;   // % годовых; дл€ FLOAT это спред к ставке ÷Ѕ
         PaymentRulePeriod base_payment_rule_period = PaymentRulePeriod::None;
         PaymentRulePeriod interest_payment_rule_period = PaymentRulePeriod::None;
         DayConvention day_convention = DayConvention::None;
         Date interest_payment_rule_start_dttm;
         Date base_payment_rule_start_dttm;
         long double current_principal_amt = 0;
+        RepricingRule repricing;
+        std::optional<long double> cap_limit;
+        std::optional<long double> floor_limit;
         Schedules time_table;
+        std::vector<RateStep> rate_timeline;
         std::vector<CashPart> cash_flow;
         ll month_count = 0;
 
@@ -102,18 +157,20 @@ namespace calculation {
             DayConvention day_conv,
             Date interest_payment_rule_start_d,
             Date base_payment_rule_start_d,
-            long double current_principal_am
+            long double current_principal_am,
+            RepricingRule repricing_rule = RepricingRule{},
+            std::optional<long double> cap = std::nullopt,
+            std::optional<long double> floor = std::nullopt
         );
 
         void calculate();
+        long double rate_at(Date d) const;
 
     private:
         int daysInYear(ll year) const;
         long double accrue(long double balance, Date from, Date to) const;
-
-        void calcANN();
-        void calcRGM();
-        void calcSIMPLE();
+        long double float_rate(Date d) const;
+        void build_rate_timeline(Date start_date);
     };
 
 }

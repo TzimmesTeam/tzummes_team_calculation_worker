@@ -20,6 +20,7 @@ FetchContent_MakeAvailable(googletest)
 
 add_library(worker_lib
     src/algorithms.cpp
+    src/key_rates.cpp
 )
 
 target_include_directories(worker_lib PUBLIC
