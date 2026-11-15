@@ -129,7 +129,7 @@ namespace calculation {
         Date deal_dttm;
         Discriminators discriminator = Discriminators::None;
         RateType rate_type = RateType::None;
-        long double interest_rate = 0;   // % годовых; для FLOAT это спред к ставке ЦБ
+        long double interest_rate = 0;
         PaymentRulePeriod base_payment_rule_period = PaymentRulePeriod::None;
         PaymentRulePeriod interest_payment_rule_period = PaymentRulePeriod::None;
         DayConvention day_convention = DayConvention::None;
