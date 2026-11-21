@@ -16,7 +16,6 @@
 
 using namespace std::chrono;
 namespace fs = std::filesystem;
-
 using namespace std::chrono;
 
 namespace {
@@ -46,7 +45,7 @@ namespace {
             if (pos == s.size()) return v;
         }
         catch (...) {}
-        throw std::runtime_error(std::string("не целое число в ") + name + ": '" + s + "'");
+        throw std::runtime_error(std::string("") + name + ": '" + s + "'");
     }
 
     double to_num(const std::string& s, const char* name) {
@@ -56,7 +55,7 @@ namespace {
             if (pos == s.size()) return v;
         }
         catch (...) {}
-        throw std::runtime_error(std::string("не число в ") + name + ": '" + s + "'");
+        throw std::runtime_error(std::string("") + name + ": '" + s + "'");
     }
 
     std::optional<double> opt_num(const std::string& s, const char* name) {
@@ -92,7 +91,7 @@ namespace {
     void rate_pairs(const std::string& dates, const std::string& values, std::vector<Day>& outDates,
         std::vector<double>& outValues) {
         auto ds = items(dates), vs = items(values);
-        if (ds.size() != vs.size()) throw std::runtime_error("разная длина дат и ставок");
+        if (ds.size() != vs.size()) throw std::runtime_error("");
         std::vector<std::pair<Day, double>> pairs;
         for (size_t i = 0; i < ds.size(); ++i)
             pairs.push_back({ day_from_seconds(to_int(ds[i], "date")), to_num(vs[i], "rate") });
@@ -104,7 +103,7 @@ namespace {
     }
 
     DealIn parse_deal(const std::vector<std::string>& f) {
-        if (f.size() != 46) throw std::runtime_error("ожидалось 46 полей, получено " + std::to_string(f.size()));
+        if (f.size() != 46) throw std::runtime_error("");
         DealIn d;
         d.id = to_int(f[0], "deal_id");
         d.report = day_from_seconds(to_int(f[1], "report_dttm"));
@@ -187,17 +186,9 @@ namespace {
         }
         out << "  ]\n}\n";
     }
-
-    void write_error(const std::filesystem::path& file, long long id, const std::string& message) {
-        std::ofstream out(file);
-        out << "{\n  \"deal_id\": " << (id >= 0 ? std::to_string(id) : "null")
-            << ",\n  \"status\": \"error\",\n  \"message\": " << json_str(message) << "\n}\n";
-    }
-
 }
 int main(int argc, char** argv) {
     if (argc > 2) {
-        std::cerr << "usage: worker [папка_результатов]\n";
         return 2;
     }
 
@@ -209,36 +200,27 @@ int main(int argc, char** argv) {
         std::unique_ptr<RateSource> source = std::make_unique<JsonFileRateSource>(exeDir / "rates.json");
         rates = source->load();
     }
-    catch (const std::exception& e) {
-        std::cerr << "ставки: " << e.what() << "\n";
+    catch (const std::exception&) {
         return 1;
     }
 
     fs::create_directories(outDir);
 
     std::string line;
-    size_t lineNo = 0, okCount = 0, failCount = 0;
     while (std::getline(std::cin, line)) {
-        ++lineNo;
         line = trim(line);
-        if (line.empty() || line[0] == '#') continue;
+        if (line.empty() || line[0] == '#')
+            continue;
 
-        long long id = -1;
         try {
             DealIn d = parse_deal(split(line, ';'));
-            id = d.id;
             auto flows = calculate(d, rates);
-            if (flows.empty()) throw std::runtime_error("нет денежных потоков");
-            write_ok(outDir / ("deal_" + std::to_string(id) + ".json"), id, flows);
-            ++okCount;
+            if (flows.empty()) continue;
+            write_ok(outDir / ("deal_" + std::to_string(d.id) + ".json"), d.id, flows);
         }
-        catch (const std::exception& e) {
-            const std::string name = id >= 0 ? "deal_" + std::to_string(id) : "line_" + std::to_string(lineNo);
-            write_error(outDir / (name + ".json"), id, e.what());
-            ++failCount;
+        catch (const std::exception&) {
         }
     }
 
-    std::cout << "done \n";
     return 0;
 }
