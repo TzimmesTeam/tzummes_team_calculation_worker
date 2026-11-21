@@ -16,7 +16,7 @@ namespace {
     std::string iso(Day d) {
         year_month_day ymd{ d };
         char buf[16];
-        std::snprintf(buf, sizeof buf, "%02u.%02u.%04d", unsigned(ymd.day()),int(ymd.year()), unsigned(ymd.month()));
+        std::snprintf(buf, sizeof buf, "%02u.%02u.%04d", unsigned(ymd.day()), int(ymd.year()), unsigned(ymd.month()));
         return buf;
     }
 
@@ -46,7 +46,7 @@ namespace {
         std::vector<Day> out;
         for (int k = 0; k < 100000; ++k) {
             Day d = nth_date(*r.start, r.period, r.day, k);
-            if (d > mat) 
+            if (d > mat)
                 break;
             if (d >= *r.start)
                 out.push_back(d);
@@ -94,7 +94,7 @@ namespace {
     }
 
     double year_length(int dayConv, Day d) {
-        if (dayConv == 3) 
+        if (dayConv == 3)
             return 365.0;
         return is_leap(int(year_month_day{ d }.year())) ? 366.0 : 365.0;
     }
@@ -105,7 +105,7 @@ namespace {
         while (x < to) {
             Day end = to;
             for (const Step& s : steps)
-                if (s.from > x){
+                if (s.from > x) {
                     end = std::min(end, s.from);
                     break;
                 }
@@ -116,7 +116,7 @@ namespace {
     }
 
     double annuity_payment(double balance, double yearRate, double periodYears, size_t n) {
-        if (n == 0) 
+        if (n == 0)
             return balance;
         double r = yearRate * periodYears;
         if (std::fabs(r) < 1e-15)
@@ -127,9 +127,9 @@ namespace {
 
     //ЗАГЛУШКА
     double monthly_prepayment_rate(const std::string& model) {
-        if (model == "PREPAYMENT_CONSUMER") 
+        if (model == "PREPAYMENT_CONSUMER")
             return 0.010;
-        if (model == "PREPAYMENT_AUTO") 
+        if (model == "PREPAYMENT_AUTO")
             return 0.010;
         if (model == "PREPAYMENT_MORTGAGE")
             return 0.005;
@@ -164,15 +164,15 @@ Period period_from_code(long long code) {
 std::vector<Flow> calculate(const DealIn& d, const Rates& rates) {
 
     const Day mat = d.maturity;
-    if (mat <= d.report) 
+    if (mat <= d.report)
         throw std::runtime_error("");
     if (d.disc < 1 || d.disc > 3)
         throw std::runtime_error("");
-    if (d.rate_type < 1 || d.rate_type > 2) 
+    if (d.rate_type < 1 || d.rate_type > 2)
         throw std::runtime_error("");
     if (d.day_conv < 1 || d.day_conv > 3)
         throw std::runtime_error("");
-    if (d.rate_type == 2 && d.base_indicator.empty()) 
+    if (d.rate_type == 2 && d.base_indicator.empty())
         throw std::runtime_error("");
     if (d.balance == 0) return {};
 
@@ -191,9 +191,9 @@ std::vector<Flow> calculate(const DealIn& d, const Rates& rates) {
         reg = { mat };
     else if (d.reg_rule.usable())
         reg = series(d.reg_rule, mat);
-    else if(simple) 
+    else if (simple)
         reg = { mat };
-    else 
+    else
         throw std::runtime_error("");
     if (reg.empty())
         reg = { mat };
@@ -205,21 +205,22 @@ std::vector<Flow> calculate(const DealIn& d, const Rates& rates) {
         ints = { mat };
     else if (d.int_rule.usable())
         ints = close_at(series(d.int_rule, mat), mat);
-    else if 
-        (simple) ints = { mat };
-    else 
+    else if (simple)
+        ints = { mat };
+    else
         ints = close_at(reg, mat);
 
     std::vector<Day> rep;
     if (d.rate_type == 2) {
         if (!d.rep_dates.empty())
             rep = close_at(sorted_unique(d.rep_dates), mat);
-        else if (d.rep_rule.usable()) 
+        else if (d.rep_rule.usable())
             rep = close_at(series(d.rep_rule, mat), mat);
-        else rep = ints;
+        else
+            rep = ints;
     }
 
-    std::vector<Day> sched;// запланированные платежи
+    std::vector<Day> sched;
     for (Day x : reg)
         if (x > S) sched.push_back(x);
     const size_t n_sched = std::max<size_t>(1, sched.size());
@@ -248,8 +249,9 @@ std::vector<Flow> calculate(const DealIn& d, const Rates& rates) {
         bool has_override = false;
         double override_rate = 0;
         for (size_t i = 0; i < d.rs_dates.size(); ++i)
-            if (d.rs_dates[i] <= t) { 
-                override_rate = d.rs_rates[i]; has_override = true; 
+            if (d.rs_dates[i] <= t) {
+                override_rate = d.rs_rates[i];
+                has_override = true;
             }
         if (has_override)
             return override_rate;
@@ -261,7 +263,7 @@ std::vector<Flow> calculate(const DealIn& d, const Rates& rates) {
             index = *v;
         else if (d.base_rate)
             index = *d.base_rate;
-        else 
+        else
             throw std::runtime_error("");
 
         double r = d.rate + index;
@@ -271,30 +273,28 @@ std::vector<Flow> calculate(const DealIn& d, const Rates& rates) {
         };
 
     std::vector<Step> base_steps{ { t0, base_rate(t0) } };
-    std::vector<Day> chg;             // изменения ставки внутри срока (после t0)
+    std::vector<Day> chg;
     for (Day x : changes)
         if (x > t0 && x < mat) {
             chg.push_back(x);
             base_steps.push_back({ x, base_rate(x) });
         }
 
-    // ------------------------------------------------------------ субсидия
-    // Субсидия - отдельный поток банка поверх процентов клиента.
     const SubsidyIn& s = d.sub;
     std::vector<Day> sub_pay, sub_rep, sub_resets;
     Day anchorS = S;
     std::vector<Step> sub_steps;
     if (s.present) {
-        if (s.pay.period.end) 
+        if (s.pay.period.end)
             sub_pay = { mat };
-        else if (s.pay.usable()) 
+        else if (s.pay.usable())
             sub_pay = close_at(series(s.pay, mat), mat);
-        else 
+        else
             throw std::runtime_error("");
 
         if (s.pay.period.end)
             anchorS = S;
-        else 
+        else
             anchorS = last_on_or_before(sub_pay, S).value_or(sub_pay.front());
 
         if (s.rate_type == 2)
@@ -310,10 +310,10 @@ std::vector<Flow> calculate(const DealIn& d, const Rates& rates) {
         const Day reset = last_on_or_before(sub_resets, t).value_or(anchorS);
         const Day fixing = shift_day(reset, s.lag);
         auto v = rates.value(s.indicator, fixing);
-        if (!v) 
+        if (!v)
             throw std::runtime_error("");
         double r = s.rate + s.coeff * *v;
-        if (s.cap && r > *s.cap) 
+        if (s.cap && r > *s.cap)
             r = *s.cap;
         if (s.floor && r < *s.floor)
             r = *s.floor;
@@ -326,13 +326,19 @@ std::vector<Flow> calculate(const DealIn& d, const Rates& rates) {
             if (x > anchorS && x < mat) sub_steps.push_back({ x, sub_rate(x) });
     }
 
+    std::vector<Day> sub_chg;
+    if (s.present && s.rate_type == 2 && s.rep.usable()) {
+        for (Day x : sub_rep)
+            if (x > S && x < mat) sub_chg.push_back(x);
+    }
+
     std::vector<Day> prin;//даты платежей долга
     std::vector<std::optional<double>> prin_sum;
     if (explicit_principal) {
         if (d.prin_amounts.size() != d.prin_dates.size() || d.prin_amounts.empty())
             throw std::runtime_error("");
         for (size_t i = 0; i < d.prin_dates.size(); ++i) {
-            if (d.prin_dates[i] <= S || d.prin_dates[i] > mat) 
+            if (d.prin_dates[i] <= S || d.prin_dates[i] > mat)
                 continue;
             prin.push_back(d.prin_dates[i]);
             prin_sum.push_back(d.prin_amounts[i]);
@@ -344,7 +350,7 @@ std::vector<Flow> calculate(const DealIn& d, const Rates& rates) {
     }
     else {
         prin = sched;
-        if (prin.empty() || prin.back() < mat) 
+        if (prin.empty() || prin.back() < mat)
             prin.push_back(mat);
         prin_sum.assign(prin.size(), std::nullopt);
     }
@@ -352,14 +358,14 @@ std::vector<Flow> calculate(const DealIn& d, const Rates& rates) {
     const double period_yrs = d.reg_rule.usable() ? period_years(d.reg_rule.period) : 1.0 / 12.0;
     double equal_part = start_balance / double(n_sched);
 
-    const double months_per_period = d.int_rule.period.months > 0 ? d.int_rule.period.months: (d.int_rule.period.days > 0 ? d.int_rule.period.days / 30.4 : 1.0);
+    const double months_per_period = d.int_rule.period.months > 0 ? d.int_rule.period.months : (d.int_rule.period.days > 0 ? d.int_rule.period.days / 30.4 : 1.0);
     const double smm_month = monthly_prepayment_rate(d.behavior);
     const double prepay_rate = 1.0 - std::pow(1.0 - smm_month, months_per_period);
 
-
-    struct Event { 
-        Day date; 
-        int kind; 
+    // kind: 0 проценты, 1 тело, 2 репрайсинг основного долга, 3 выплата субсидии, 4 репрайсинг субсидии
+    struct Event {
+        Day date;
+        int kind;
         size_t index;
     };
 
@@ -374,6 +380,8 @@ std::vector<Flow> calculate(const DealIn& d, const Rates& rates) {
     if (s.present)
         for (size_t i = 0; i < sub_pay.size(); ++i)
             if (sub_pay[i] > anchorS) events.push_back({ sub_pay[i], 3, i });
+    for (size_t k = 0; k < sub_chg.size(); ++k)
+        events.push_back({ sub_chg[k], 4, k });
     std::stable_sort(events.begin(), events.end(), [](const Event& a, const Event& b) {
         return a.date != b.date ? a.date < b.date : a.kind < b.kind;
         });
@@ -390,14 +398,14 @@ std::vector<Flow> calculate(const DealIn& d, const Rates& rates) {
         if (t > fromI)
             accInterest += accrue(base_steps, d.day_conv, balance, fromI, t);
         const Day fromR = std::max(cursor, anchorR);
-        if (t > fromR) 
+        if (t > fromR)
             accPrincipal += accrue(base_steps, d.day_conv, balance, fromR, t);
         if (s.present) {
             const Day fromS = std::max(cursor, anchorS);
             if (t > fromS) accSubsidy += accrue(sub_steps, d.day_conv, balance, fromS, t);
         }
         cursor = t;
-    };
+        };
 
     double annuity = ann ? annuity_payment(start_balance, base_rate(S), period_yrs, n_sched) : 0;
     std::vector<Flow> flows;
@@ -463,11 +471,15 @@ std::vector<Flow> calculate(const DealIn& d, const Rates& rates) {
                 }
                 flows.push_back({ x, "repricing", rate, 0, (x - anchorI).count() });
             }
-            else {
+            else if (e.kind == 3) {
                 const double paid = accSubsidy;
                 accSubsidy = 0;
                 if (std::fabs(paid) < 1e-9) continue;
                 flows.push_back({ t, "subsidy", sign * paid, 0, (t - anchorS).count() });
+            }
+            else {
+                const Day x = sub_chg[e.index];
+                flows.push_back({ x, "subsidy_repricing", sub_rate(x), 0, (x - anchorS).count() });
             }
         }
         for (size_t k = firstRow; k < flows.size(); ++k)
