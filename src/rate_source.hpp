@@ -3,6 +3,6 @@
 
 class RateSource {
 public:
-    virtual ~RateSource() = default;
-    virtual Rates load() = 0;
+  virtual ~RateSource() = default;
+  virtual Rates load() = 0;
 };
