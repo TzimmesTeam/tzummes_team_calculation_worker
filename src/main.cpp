@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -8,6 +9,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "calc.hpp"
@@ -219,6 +221,7 @@ void write_ok(const std::filesystem::path &file, long long id,
   out << "  ]\n}\n";
 }
 } // namespace
+
 int main(int argc, char **argv) {
   if (argc > 2) {
     return 2;
@@ -238,22 +241,34 @@ int main(int argc, char **argv) {
 
   fs::create_directories(outDir);
 
+  std::vector<std::string> lines;
   std::string line;
   while (std::getline(std::cin, line)) {
     line = trim(line);
-    if (line.empty() || line[0] == '#')
-      continue;
-
-    try {
-      DealIn d = parse_deal(split(line, ';'));
-      auto flows = calculate(d, rates);
-      if (flows.empty())
-        continue;
-      write_ok(outDir / ("deal_" + std::to_string(d.id) + ".json"), d.id,
-               flows);
-    } catch (const std::exception &) {
-    }
+    if (!line.empty() && line[0] != '#')
+      lines.push_back(line);
   }
+
+  std::atomic<size_t> next{0};
+  auto work = [&]() {
+    for (size_t i = next++; i < lines.size(); i = next++) {
+      try {
+        DealIn d = parse_deal(split(lines[i], ';'));
+        auto flows = calculate(d, rates);
+        if (!flows.empty())
+          write_ok(outDir / ("deal_" + std::to_string(d.id) + ".json"), d.id,
+                   flows);
+      } catch (const std::exception &) {
+      }
+    }
+  };
+
+  unsigned threads = std::max(1u, std::thread::hardware_concurrency());
+  std::vector<std::thread> pool;
+  for (unsigned t = 0; t < threads; ++t)
+    pool.emplace_back(work);
+  for (auto &t : pool)
+    t.join();
 
   return 0;
 }
