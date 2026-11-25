@@ -1,0 +1,9 @@
+build/
+build-*/
+out/
+.vs/
+.git/
+.github/
+tests/result/
+**/*.xlsx
+**/__pycache__/

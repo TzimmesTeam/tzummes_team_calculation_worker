@@ -19,9 +19,11 @@ target_link_libraries(worker_lib PUBLIC Threads::Threads)
 add_executable(worker src/main.cpp)
 target_link_libraries(worker PRIVATE worker_lib)
 
-add_custom_command(TARGET worker POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:worker> ${CMAKE_CURRENT_SOURCE_DIR}/tests/
-)
+if(WIN32 AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+    add_custom_command(TARGET worker POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:worker> ${CMAKE_CURRENT_SOURCE_DIR}/tests/
+    )
+endif()
 
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/test.cpp)
     include(FetchContent)
